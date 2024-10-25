@@ -19,8 +19,7 @@ namespace Customer.API.Controllers
         public async Task<IActionResult> ApplyLoan()
         {
 
-            var uri = new Uri($"queue:{Endpoints.LoanStateMachine}");
-            ISendEndpoint sendEndpoint = await _sendEndpointProvider.GetSendEndpoint(uri);
+            ISendEndpoint sendEndpoint = await _sendEndpointProvider.GetSendEndpoint(new($"queue:{Endpoints.LoanStateMachine}"));
 
             Random rdm = new Random();
             int randomId = rdm.Next(1, 1000);

@@ -1,5 +1,6 @@
 using Credit.API.Consumers;
 using MassTransit;
+using Shared;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,7 +19,7 @@ builder.Services.AddMassTransit(opt =>
     opt.UsingRabbitMq((context, config) =>
     {
         config.Host(builder.Configuration.GetConnectionString("RabbitMQLocal"));
-        config.ReceiveEndpoint(x => x.ConfigureConsumer<CheckCreditScoreCommandConsumer>(context));
+        config.ReceiveEndpoint(Endpoints.CheckCreditScore,x => x.ConfigureConsumer<CheckCreditScoreCommandConsumer>(context));
     });
 });
 

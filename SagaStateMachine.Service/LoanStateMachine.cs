@@ -13,17 +13,15 @@ namespace SagaStateMachine.Service
 {
     public class LoanStateMachine : MassTransitStateMachine<LoanStateInstance>
     {
-        public Event<LoanRequestedEvent> LoanRequested { get; set; }
+        public Event<LoanRequestCommand> LoanRequested { get; set; }
         public Event<CreditNotApprovedEvent> CreditNotApproved { get; set; }
         public Event<CreditApprovedEvent> CreditApproved { get; set; }
         public Event<LoanApprovedEvent> LoanApproved { get; set; }
         public Event<LoanFaildEvent> LoanFaild { get; set; }
 
         public State LoanRequestCommandState { get; set; }
-        public State CreditNotApprovedState { get; set; }
         public State CreditApprovedState { get; set; }
         public State LoanApprovedState { get; set; }
-        public State LoanFaildState { get; set; }
 
         public LoanStateMachine()
         {
@@ -47,26 +45,44 @@ namespace SagaStateMachine.Service
                 orderStateInstance =>
                 orderStateInstance.CorrelateById(@event => @event.Message.CorrelationId));
 
-            Initially(When(LoanRequested).Send(new Uri($"queue:{Endpoints.CheckCreditScore}"), context => new CheckCreditScoreCommand(context.Saga.CorrelationId)
-            {
-                AccountNumber = context.Message.AccountNumber,
-                Amount = context.Message.Amount
-            }));
+            Initially(
+                When(LoanRequested)
+                .Send(new Uri($"queue:{Endpoints.CheckCreditScore}"), context => new CheckCreditScoreCommand(context.Saga.CorrelationId)
+                {
+                    AccountNumber = context.Message.AccountNumber,
+                    Amount = context.Message.Amount
+                }).TransitionTo(LoanRequestCommandState));
 
             During(LoanRequestCommandState,
                 When(CreditApproved)
                 .TransitionTo(CreditApprovedState)
+                .Publish(context => new CreditApprovedEvent(context.Message.CorrelationId)
+                {
+                    AccountNumber = context.Message.AccountNumber,
+                })
                 .Send(new Uri($"queue:{Endpoints.ApproveLoan}"), context => new ApproveLoanCommand(context.Saga.CorrelationId)
                 {
                     AccountNumber = context.Message.AccountNumber,
                 }),
                 When(CreditNotApproved)
-                .TransitionTo(CreditNotApprovedState)
                 .Publish(context => new CreditNotApprovedEvent(context.Message.CorrelationId)
                 {
                     AccountNumber = context.Message.AccountNumber,
                     Message = context.Message.Message
-                }));
+                }).Finalize());
+
+            During(CreditApprovedState,
+                When(LoanApproved).TransitionTo(LoanApprovedState)
+                .Publish(context => new LoanApprovedEvent(context.Saga.CorrelationId)
+                {
+                    AccountNumber = context.Message.AccountNumber
+                }),
+                When(LoanFaild)
+                .Publish(context => new LoanFaildEvent(context.Saga.CorrelationId)
+                {
+                    AccountNumber = context.Message.AccountNumber,
+                    Message = context.Message.Message
+                }).Finalize());
         }
     }
 }
